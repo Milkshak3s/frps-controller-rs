@@ -33,7 +33,7 @@ jobs:
       - name: rust-cache
         uses: Swatinem/rust-cache@v2
       - name: 🔨 Build Controller
-        run: cargo build --release
+        run: cargo build --release --bin=controller --target=x86_64-unknown-linux-musl
         env:
           RUSTFLAGS: "-C target-feature=+crt-static"
       - name: Log in to the Container registry
