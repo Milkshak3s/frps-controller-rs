@@ -34,22 +34,22 @@ pub struct EndpointReferenceStatus {
 }
 
 #[derive(Clone)]
-pub struct Context {
+pub struct EndpointContext {
     pub client: Client
 }
 
 
-fn error_policy(doc: Arc<EndpointReference>, error: &Error, ctx: Arc<Context>) -> Action {
+pub fn error_policy(_epr: Arc<EndpointReference>, error: &Error, _ctx: Arc<EndpointContext>) -> Action {
     println!("reconcile failed: {:?}", error);
     Action::requeue(Duration::from_secs(5 * 60))
 }
 
-async fn reconcile(epr: Arc<EndpointReference>, ctx: Arc<Context>) -> Result<Action> {
+pub async fn reconcile(epr: Arc<EndpointReference>, ctx: Arc<EndpointContext>) -> Result<Action> {
     let ns = epr.namespace().unwrap();
-    let docs: Api<EndpointReference> = Api::namespaced(ctx.client.clone(), &ns);
+    let eprs: Api<EndpointReference> = Api::namespaced(ctx.client.clone(), &ns);
 
-    println!("Reconciling Document \"{}\" in {}", epr.name_any(), ns);
-    finalizer(&docs, EPR_FINALIZER, epr, |event| async {
+    println!("Reconciling EndpointReference \"{}\" in {}", epr.name_any(), ns);
+    finalizer(&eprs, EPR_FINALIZER, epr, |event| async {
         match event {
             Finalizer::Apply(doc) => doc.reconcile(ctx.clone()).await,
             Finalizer::Cleanup(doc) => doc.cleanup(ctx.clone()).await,
@@ -60,35 +60,35 @@ async fn reconcile(epr: Arc<EndpointReference>, ctx: Arc<Context>) -> Result<Act
 }
 
 impl EndpointReference {
-    async fn reconcile(&self, ctx: Arc<Context>) -> Result<Action> {
+    async fn reconcile(&self, _ctx: Arc<EndpointContext>) -> Result<Action> {
         todo!()
     }
 
-    async fn cleanup(&self, ctx: Arc<Context>) -> Result<Action> {
+    async fn cleanup(&self, _ctx: Arc<EndpointContext>) -> Result<Action> {
         todo!()
     }
 }
 
 #[derive(Clone, Default)]
-pub struct State {}
+pub struct EndpointState {}
 
-impl State {
-    pub fn to_context(&self, client: Client) -> Arc<Context> {
-        Arc::new(Context {
+impl EndpointState {
+    pub fn to_context(&self, client: Client) -> Arc<EndpointContext> {
+        Arc::new(EndpointContext {
             client
         })
     }
 }
 
-pub async fn run(state: State) {
+pub async fn run_endpoints_controller(state: EndpointState) {
     let client = Client::try_default().await.expect("failed to create kube Client");
-    let docs = Api::<EndpointReference>::all(client.clone());
-    if let Err(e) = docs.list(&ListParams::default().limit(1)).await {
+    let eprs = Api::<EndpointReference>::all(client.clone());
+    if let Err(e) = eprs.list(&ListParams::default().limit(1)).await {
         println!("CRD is not queryable; {e:?}. Is the CRD installed?");
         println!("Installation: cargo run --bin crdgen | kubectl apply -f -");
         std::process::exit(1);
     }
-    Controller::new(docs, Config::default().any_semantic())
+    Controller::new(eprs, Config::default().any_semantic())
         .shutdown_on_signal()
         .run(reconcile, error_policy, state.to_context(client))
         .filter_map(|x| async move { std::result::Result::ok(x) })
