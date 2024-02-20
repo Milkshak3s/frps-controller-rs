@@ -6,8 +6,8 @@ on:
   workflow_dispatch: ~
 
 env:
-  GHCR_REGISTRY: ghcr.io
-  GHCR_IMAGE_NAME: ${{ github.repository }}
+  GHCR_REGISTRY: ghcr.io/Milkshak3s
+  GHCR_IMAGE_NAME: frps-controller-rs
 
 jobs:
   build_push_controller:
