@@ -1,4 +1,4 @@
-use crate::{Result, Error};
+use crate::{Result, Error, EndpointReference};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use kube::{
@@ -15,6 +15,7 @@ use kube::{
 use std::sync::Arc;
 use tokio::time::Duration;
 use futures::StreamExt;
+use serde_json::json;
 
 pub static FRPC_FINALIZER: &str = "frpclients.milkshakes.cloud";
 
@@ -57,12 +58,31 @@ async fn reconcile_frpclients(frpc: Arc<FrpClient>, ctx: Arc<FrpClientContext>) 
 }
 
 impl FrpClient {
-    async fn reconcile(&self, _ctx: Arc<FrpClientContext>) -> Result<Action> {
-        todo!()
+    async fn reconcile(&self, ctx: Arc<FrpClientContext>) -> Result<Action> {
+        let client = ctx.client.clone();
+        let ns = self.namespace().unwrap();
+        let name = self.name_any();
+        let frpcs: Api<FrpClient> = Api::namespaced(client, &ns);
+
+        let new_status = Patch::Apply(json!({
+            "apiVersion": "milkshakes.cloud/v1",
+            "kind": "FrpClient",
+            "status": FrpClientStatus {
+                active: true,
+                provisioned: false
+            }
+        }));
+        let ps = PatchParams::apply("cntrlr").force();
+        let _o = frpcs
+            .patch_status(&name, &ps, &new_status)
+            .await
+            .map_err(Error::KubeError)?;
+
+        Ok(Action::requeue(Duration::from_secs(60)))
     }
 
     async fn cleanup(&self, _ctx: Arc<FrpClientContext>) -> Result<Action> {
-        todo!()
+        Ok(Action::await_change())
     }
 }
 

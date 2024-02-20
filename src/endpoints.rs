@@ -15,6 +15,7 @@ use kube::{
 use std::sync::Arc;
 use tokio::time::Duration;
 use futures::StreamExt;
+use serde_json::json;
 
 pub static EPR_FINALIZER: &str = "endpointreferences.milkshakes.cloud";
 
@@ -60,12 +61,37 @@ pub async fn reconcile(epr: Arc<EndpointReference>, ctx: Arc<EndpointContext>) -
 }
 
 impl EndpointReference {
-    async fn reconcile(&self, _ctx: Arc<EndpointContext>) -> Result<Action> {
-        todo!()
+    async fn reconcile(&self, ctx: Arc<EndpointContext>) -> Result<Action> {
+        let client = ctx.client.clone();
+        let ns = self.namespace().unwrap();
+        let name = self.name_any();
+        let erps: Api<EndpointReference> = Api::namespaced(client, &ns);
+
+        if name == "illegal" {
+            return Err(Error::InvalidEndpointReference);
+        }
+
+        let status = EndpointReferenceStatus {
+            active: true
+        };
+
+        let new_status = Patch::Apply(json!({
+            "apiVersion": "milkshakes.cloud/v1",
+            "kind": "EndpointReference",
+            "status": status
+        }));
+        let ps = PatchParams::apply("cntrlr").force();
+        let _o = erps
+            .patch_status(&name, &ps, &new_status)
+            .await
+            .map_err(Error::KubeError)?;
+
+        Ok(Action::requeue(Duration::from_secs(60)))
     }
 
-    async fn cleanup(&self, _ctx: Arc<EndpointContext>) -> Result<Action> {
-        todo!()
+    async fn cleanup(&self, ctx: Arc<EndpointContext>) -> Result<Action> {
+        // EndpointReference doesn't have any real cleanup, so we just publish an event
+        Ok(Action::await_change())
     }
 }
 
