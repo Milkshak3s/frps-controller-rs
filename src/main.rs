@@ -26,6 +26,6 @@ async fn main() -> anyhow::Result<()> {
 
     tokio::spawn(endpts_controller);
     tokio::spawn(frpc_controller);
-    tokio::spawn(server.run());
+    let _ = tokio::spawn(server.run()).await;
     Ok(())
 }
