@@ -1,4 +1,4 @@
-use crate::{Result, Error, EndpointReference};
+use crate::{Result, Error};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use kube::{
@@ -6,11 +6,10 @@ use kube::{
     client::Client,
     runtime::{
         controller::{Action, Controller},
-        events::{Event, EventType, Recorder, Reporter},
         finalizer::{finalizer, Event as Finalizer},
         watcher::Config,
     },
-    CustomResource, Resource,
+    CustomResource,
 };
 use std::sync::Arc;
 use tokio::time::Duration;
@@ -97,7 +96,7 @@ impl FrpClientState {
     }
 }
 
-pub fn error_policy(_frpc: Arc<FrpClient>, error: &Error, _ctx: Arc<FrpClientContext>) -> Action {
+pub fn frpc_error_policy(_frpc: Arc<FrpClient>, error: &Error, _ctx: Arc<FrpClientContext>) -> Action {
     println!("reconcile failed: {:?}", error);
     Action::requeue(Duration::from_secs(5 * 60))
 }
@@ -112,7 +111,7 @@ pub async fn run_frpclient_controller(state: FrpClientState) {
     }
     Controller::new(frpcs, Config::default().any_semantic())
         .shutdown_on_signal()
-        .run(reconcile_frpclients, error_policy, state.to_context(client))
+        .run(reconcile_frpclients, frpc_error_policy, state.to_context(client))
         .filter_map(|x| async move { std::result::Result::ok(x) })
         .for_each(|_| futures::future::ready(()))
         .await;

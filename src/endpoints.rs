@@ -6,11 +6,10 @@ use kube::{
     client::Client,
     runtime::{
         controller::{Action, Controller},
-        events::{Event, EventType, Recorder, Reporter},
         finalizer::{finalizer, Event as Finalizer},
         watcher::Config,
     },
-    CustomResource, Resource,
+    CustomResource,
 };
 use std::sync::Arc;
 use tokio::time::Duration;
@@ -40,7 +39,7 @@ pub struct EndpointContext {
 }
 
 
-pub fn error_policy(_epr: Arc<EndpointReference>, error: &Error, _ctx: Arc<EndpointContext>) -> Action {
+pub fn eps_error_policy(_epr: Arc<EndpointReference>, error: &Error, _ctx: Arc<EndpointContext>) -> Action {
     println!("reconcile failed: {:?}", error);
     Action::requeue(Duration::from_secs(5 * 60))
 }
@@ -89,7 +88,7 @@ impl EndpointReference {
         Ok(Action::requeue(Duration::from_secs(60)))
     }
 
-    async fn cleanup(&self, ctx: Arc<EndpointContext>) -> Result<Action> {
+    async fn cleanup(&self, _ctx: Arc<EndpointContext>) -> Result<Action> {
         // EndpointReference doesn't have any real cleanup, so we just publish an event
         Ok(Action::await_change())
     }
@@ -116,7 +115,7 @@ pub async fn run_endpoints_controller(state: EndpointState) {
     }
     Controller::new(eprs, Config::default().any_semantic())
         .shutdown_on_signal()
-        .run(reconcile, error_policy, state.to_context(client))
+        .run(reconcile, eps_error_policy, state.to_context(client))
         .filter_map(|x| async move { std::result::Result::ok(x) })
         .for_each(|_| futures::future::ready(()))
         .await;
