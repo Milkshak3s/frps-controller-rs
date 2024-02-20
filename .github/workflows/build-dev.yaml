@@ -36,6 +36,7 @@ jobs:
         run: cargo build --release --bin=controller --target=x86_64-unknown-linux-musl
         env:
           RUSTFLAGS: "-C target-feature=+crt-static"
+          CARGO_TARGET_DIR: ./
       - name: Log in to the Container registry
         uses: docker/login-action@v2
         with:
